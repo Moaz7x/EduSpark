@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/todo_list_screen_provider.dart';
 import '../utils/modal_bottom_sheet_utils.dart';
 import '../widgets/forms/add_edit_todo_form.dart';
 import '../widgets/todo_list_screen/todo_list_app_bar.dart';
 import '../widgets/todo_list_screen/todo_tab_view.dart';
 
+/// A wrapper widget whose only purpose is to provide a Ticker for the TabController.
 class TodoListScreen extends StatefulWidget {
   const TodoListScreen({super.key});
 
@@ -12,81 +14,42 @@ class TodoListScreen extends StatefulWidget {
   State<TodoListScreen> createState() => _TodoListScreenState();
 }
 
-class _TodoListScreenState extends State<TodoListScreen> {
-  String _searchQuery = '';
+class _TodoListScreenState extends State<TodoListScreen> with SingleTickerProviderStateMixin {
+  // This is the key: we create the provider override here, passing `this` as the TickerProvider.
+  late final StateNotifierProvider<TodoListScreenNotifier, TodoListScreenState> _provider;
 
-  // --- MOCK DATA FOR PROTOTYPE ---
-  // In a real app, this list would come from a Riverpod provider.
-  final List<Map<String, dynamic>> _allTodos = [
-    {
-      'id': 1,
-      'title': 'Design the new app dashboard',
-      'isCompleted': false,
-      'priority': 'High',
-      'dueDate': DateTime.now().add(const Duration(days: 2)),
-    },
-    {
-      'id': 2,
-      'title': 'Develop the authentication flow',
-      'isCompleted': true,
-      'priority': 'High',
-      'dueDate': DateTime.now().subtract(const Duration(days: 5)),
-    },
-    {
-      'id': 3,
-      'title': 'Write API documentation',
-      'isCompleted': false,
-      'priority': 'Medium',
-      'dueDate': DateTime.now().add(const Duration(days: 10)),
-    },
-    {
-      'id': 4,
-      'title': 'Set up the CI/CD pipeline',
-      'isCompleted': false,
-      'priority': 'Low',
-      'dueDate': DateTime.now().add(const Duration(days: 25)),
-    },
-    {
-      'id': 5,
-      'title': 'Review team pull requests',
-      'isCompleted': true,
-      'priority': 'Medium',
-      'dueDate': DateTime.now().subtract(const Duration(days: 1)),
-    },
-    {
-      'id': 6,
-      'title': 'Plan the next sprint',
-      'isCompleted': false,
-      'priority': 'High',
-      'dueDate': DateTime.now().add(const Duration(days: 1)),
-    },
-    {
-      'id': 7,
-      'title': 'Fix bug #117 in production',
-      'isCompleted': false,
-      'priority': 'High',
-      'dueDate': DateTime.now(),
-    },
-    {
-      'id': 8,
-      'title': 'Update third-party libraries',
-      'isCompleted': true,
-      'priority': 'Low',
-      'dueDate': DateTime.now().subtract(const Duration(days: 12)),
-    },
-  ];
-  // --- END MOCK DATA ---
+  @override
+  void initState() {
+    super.initState();
+    _provider = StateNotifierProvider<TodoListScreenNotifier, TodoListScreenState>(
+      (ref) => TodoListScreenNotifier(this),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    // We wrap the actual UI in a ProviderScope to override the provider.
+    return ProviderScope(
+      overrides: [
+        todoListScreenProvider.overrideWith((ref) => ref.watch(_provider.notifier)),
+      ],
+      child: const _TodoListScreenView(),
+    );
+  }
+}
+
+/// The actual UI for the screen, now a stateless ConsumerWidget.
+class _TodoListScreenView extends ConsumerWidget {
+  const _TodoListScreenView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // The UI now watches the provider as usual.
+    final screenState = ref.watch(todoListScreenProvider);
+    final screenNotifier = ref.read(todoListScreenProvider.notifier);
+
     return Scaffold(
-      appBar: TodoListAppBar(
-        onSearchChanged: (query) {
-          setState(() {
-            _searchQuery = query;
-          });
-        },
-      ),
+      appBar: const TodoListAppBar(),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           ModalBottomSheetUtils.showAppModalBottomSheet(
@@ -97,7 +60,12 @@ class _TodoListScreenState extends State<TodoListScreen> {
         },
         child: const Icon(Icons.add),
       ),
-      body: TodoTabView(allTodos: _allTodos, searchQuery: _searchQuery),
+      body: TodoTabView(
+        // The TabController is now accessed directly from the notifier.
+        tabController: screenNotifier.tabController,
+        allTodos: screenState.allTodos,
+        searchQuery: screenState.searchQuery,
+      ),
     );
   }
 }

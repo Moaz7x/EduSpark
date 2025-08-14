@@ -29,6 +29,9 @@ class AddEditTodoForm extends ConsumerWidget {
     return Form(
       key: formState.formKey,
       child: Column(
+        // This is the key change. By setting the mainAxisSize to min, the Column
+        // will shrink-wrap its content to be only as tall as its children,
+        // instead of trying to expand to fill the infinite height of the scrollable parent.
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -60,54 +63,27 @@ class AddEditTodoForm extends ConsumerWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final isNarrow = constraints.maxWidth < 350;
-              return Flex(
-                direction: isNarrow ? Axis.vertical : Axis.horizontal,
-                children: [
-                  // Priority Dropdown
-                  Flexible(
-                    child: DropdownButtonFormField<String>(
-                      value: formState.selectedPriority,
-                      decoration: const InputDecoration(
-                        labelText: 'Priority',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: ['Low', 'Medium', 'High']
-                          .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                          .toList(),
-                      onChanged: (value) => formNotifier.setPriority(value!),
-                      validator: (v) => v == null ? 'Please select a priority.' : null,
-                    ),
-                  ),
-                  SizedBox(width: isNarrow ? 0 : 16, height: isNarrow ? 16 : 0),
-                  // Due Date Picker
-                  Flexible(
-                    child: GestureDetector(
-                      onTap: pickDueDate,
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Due Date',
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                formState.selectedDueDate == null
-                                    ? 'Not Set'
-                                    : DateTimeUtils.formatDate(formState.selectedDueDate),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const Icon(Icons.calendar_today, size: 20),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
+              // We use a standard Row/Column here. The fix is in the parent Column.
+              if (isNarrow) {
+                // VERTICAL LAYOUT FOR NARROW SCREENS
+                return Column(
+                  children: [
+                    _buildPriorityDropdown(formState, formNotifier),
+                    const SizedBox(height: 16),
+                    _buildDueDateField(context, formState, pickDueDate),
+                  ],
+                );
+              } else {
+                // HORIZONTAL LAYOUT FOR WIDER SCREENS
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _buildPriorityDropdown(formState, formNotifier)),
+                    const SizedBox(width: 16),
+                    Expanded(child: _buildDueDateField(context, formState, pickDueDate)),
+                  ],
+                );
+              }
             },
           ),
           const SizedBox(height: 24),
@@ -126,6 +102,50 @@ class AddEditTodoForm extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
         ],
+      ),
+    );
+  }
+
+  // Helper method for Priority Dropdown
+  Widget _buildPriorityDropdown(TodoFormState formState, TodoFormNotifier formNotifier) {
+    return DropdownButtonFormField<String>(
+      value: formState.selectedPriority,
+      decoration: const InputDecoration(
+        labelText: 'Priority',
+        border: OutlineInputBorder(),
+      ),
+      items: ['Low', 'Medium', 'High']
+          .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+          .toList(),
+      onChanged: (value) => formNotifier.setPriority(value!),
+      validator: (v) => v == null ? 'Please select a priority.' : null,
+    );
+  }
+
+  // Helper method for Due Date Picker
+  Widget _buildDueDateField(BuildContext context, TodoFormState formState, VoidCallback pickDueDate) {
+    return GestureDetector(
+      onTap: pickDueDate,
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Due Date',
+          border: OutlineInputBorder(),
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Flexible(
+              child: Text(
+                formState.selectedDueDate == null
+                    ? 'Not Set'
+                    : DateTimeUtils.formatDate(formState.selectedDueDate),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Icon(Icons.calendar_today, size: 20),
+          ],
+        ),
       ),
     );
   }

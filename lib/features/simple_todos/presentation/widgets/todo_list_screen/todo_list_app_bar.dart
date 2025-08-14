@@ -1,50 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class TodoListAppBar extends StatefulWidget implements PreferredSizeWidget {
-  final Function(String) onSearchChanged;
+import '../../providers/todo_list_screen_provider.dart';
 
-  const TodoListAppBar({super.key, required this.onSearchChanged});
-
-  @override
-  State<TodoListAppBar> createState() => _TodoListAppBarState();
-
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-}
-
-class _TodoListAppBarState extends State<TodoListAppBar> {
-  bool _isSearching = false;
-  final TextEditingController _searchController = TextEditingController();
+/// A stateless AppBar for the TodoListScreen.
+/// It reads its state from and dispatches actions to the `todoListScreenProvider`.
+class TodoListAppBar extends ConsumerWidget implements PreferredSizeWidget {
+  const TodoListAppBar({super.key});
 
   @override
-  void initState() {
-    super.initState();
-    _searchController.addListener(() {
-      widget.onSearchChanged(_searchController.text);
-    });
-  }
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the provider to get the current state.
+    final screenState = ref.watch(todoListScreenProvider);
+    // Read the notifier to call methods.
+    final screenNotifier = ref.read(todoListScreenProvider.notifier);
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _toggleSearch() {
-    setState(() {
-      _isSearching = !_isSearching;
-      if (!_isSearching) {
-        _searchController.clear();
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return AppBar(
-      title: _isSearching
+      title: screenState.isSearching
           ? TextField(
-              controller: _searchController,
+              controller: screenNotifier.searchController,
               autofocus: true,
               decoration: const InputDecoration(
                 hintText: 'Search todos...',
@@ -52,28 +26,29 @@ class _TodoListAppBarState extends State<TodoListAppBar> {
                 hintStyle: TextStyle(color: Colors.white54),
               ),
               style: const TextStyle(color: Colors.white, fontSize: 18),
+              onChanged: screenNotifier.onSearchChanged,
             )
           : const Text('My Todos'),
       actions: [
         IconButton(
-          icon: Icon(_isSearching ? Icons.close : Icons.search),
-          onPressed: _toggleSearch,
+          icon: Icon(screenState.isSearching ? Icons.close : Icons.search),
+          onPressed: screenNotifier.toggleSearch,
         ),
-        if (!_isSearching)
+        if (!screenState.isSearching)
           PopupMenuButton<String>(
             onSelected: (value) {
               // TODO: Implement logic for menu item selection
             },
             itemBuilder: (BuildContext context) {
               return {'Filter', 'Sort by Date', 'Clear All'}.map((String choice) {
-                return PopupMenuItem<String>(
-                  value: choice,
-                  child: Text(choice),
-                );
+                return PopupMenuItem<String>(value: choice, child: Text(choice));
               }).toList();
             },
           ),
       ],
     );
   }
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
