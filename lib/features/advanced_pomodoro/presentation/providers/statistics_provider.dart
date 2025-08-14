@@ -1,0 +1,444 @@
+import 'dart:async';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../domain/usecases/base_usecase.dart';
+import '../../domain/entities/statistics_entity.dart';
+import '../../data/providers/advanced_pomodoro_data_providers.dart';
+import 'provider_states.dart';
+
+// ============================================================================
+// STATISTICS PROVIDERS
+// ============================================================================
+
+/// Main state provider for Statistics list with performance optimizations
+final statisticsListProvider = StateNotifierProvider.autoDispose<StatisticsListNotifier, AsyncValue<List<StatisticsEntity>>>((ref) {
+  return StatisticsListNotifier(ref);
+});
+
+/// Search state provider for Statistics with debouncing
+final statisticsSearchProvider = StateNotifierProvider.autoDispose<StatisticsSearchNotifier, SearchState>((ref) {
+  return StatisticsSearchNotifier(ref);
+});
+
+/// Filter state provider for Statistics with optimization
+final statisticsFilterProvider = StateNotifierProvider.autoDispose<StatisticsFilterNotifier, FilterState>((ref) {
+  return StatisticsFilterNotifier(ref);
+});
+
+/// Pagination state provider for Statistics with optimization
+final statisticsPaginationProvider = StateNotifierProvider.autoDispose<StatisticsPaginationNotifier, PaginationState>((ref) {
+  return StatisticsPaginationNotifier(ref);
+});
+
+/// Loading states for different operations
+final statisticsLoadingProvider = StateProvider<Map<String, bool>>((ref) => {});
+
+/// Selected Statistics provider for detail views
+final selectedStatisticsProvider = StateProvider<StatisticsEntity?>((ref) => null);
+
+/// Batch selection provider for bulk operations
+final selectedStatisticsIdsProvider = StateProvider<Set<int>>((ref) => {});
+
+/// Computed provider for filtered statistics count
+final statisticsCountProvider = Provider<int>((ref) {
+  return ref.watch(statisticsListProvider).when(
+    data: (statisticss) => statisticss.length,
+    loading: () => 0,
+    error: (_, __) => 0,
+  );
+});
+
+/// Computed provider for selected statistics count
+final selectedStatisticsCountProvider = Provider<int>((ref) {
+  return ref.watch(selectedStatisticsIdsProvider).length;
+});
+
+/// Computed provider for loading state
+final statisticsIsLoadingProvider = Provider<bool>((ref) {
+  final loadingStates = ref.watch(statisticsLoadingProvider);
+  return loadingStates.values.any((isLoading) => isLoading);
+});
+
+// ============================================================================
+// STATISTICS NOTIFIERS
+// ============================================================================
+
+/// Notifier for managing Statistics list state
+class StatisticsListNotifier extends StateNotifier<AsyncValue<List<StatisticsEntity>>> {
+  final Ref ref;
+  List<StatisticsEntity> _allItems = [];
+  List<StatisticsEntity> _filteredItems = [];
+
+  StatisticsListNotifier(this.ref) : super(const AsyncValue.loading()) {
+    loadAll();
+  }
+
+  /// Loads all statisticss
+  Future<void> loadAll() async {
+    try {
+      final useCase = ref.read(getAllStatisticssUseCaseProvider);
+      final result = await useCase.call();
+      result.fold(
+        (failure) => state = AsyncValue.error(failure, StackTrace.current),
+        (statisticss) {
+          _allItems = statisticss;
+          _applyFiltersAndSearch();
+        },
+      );
+    } catch (error, stackTrace) {
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
+  /// Creates a new statistics
+  Future<void> create(StatisticsEntity statistics) async {
+    try {
+      final useCase = ref.read(createStatisticsUseCaseProvider);
+      final result = await useCase.call(statistics);
+      result.fold(
+        (failure) => throw failure,
+        (statistics) {
+          _allItems.add(statistics);
+          _applyFiltersAndSearch();
+        },
+      );
+    } catch (error) {
+      rethrow;
+    }
+  }
+
+  /// Updates an existing statistics
+  Future<void> update(StatisticsEntity statistics) async {
+    try {
+      final useCase = ref.read(updateStatisticsUseCaseProvider);
+      final params = UpdateParams<StatisticsEntity>(
+        id: statistics.id!,
+        entity: statistics,
+      );
+      params.validate();
+      final result = await useCase.call(params);
+      result.fold(
+        (failure) => throw failure,
+        (statistics) {
+          final index = _allItems.indexWhere((item) => item.id == statistics.id);
+          if (index != -1) {
+            _allItems[index] = statistics;
+            _applyFiltersAndSearch();
+          }
+        },
+      );
+    } catch (error) {
+      rethrow;
+    }
+  }
+
+  /// Deletes a statistics
+  Future<void> delete(int id) async {
+    try {
+      final useCase = ref.read(deleteStatisticsUseCaseProvider);
+      final params = IdParams(id);
+      params.validate();
+      final result = await useCase.call(params);
+      result.fold(
+        (failure) => throw failure,
+        (success) {
+          if (success == true) {
+            _allItems.removeWhere((item) => item.id == id);
+            _applyFiltersAndSearch();
+          }
+        },
+      );
+    } catch (error) {
+      rethrow;
+    }
+  }
+
+  /// Gets a statistics by ID
+  Future<StatisticsEntity?> getById(int id) async {
+    try {
+      final useCase = ref.read(getStatisticsByIdUseCaseProvider);
+      final params = IdParams(id);
+      params.validate();
+      final result = await useCase.call(params);
+      return result.fold(
+        (failure) => throw failure,
+        (statistics) => statistics,
+      );
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /// Applies current filters and search to the data
+  void _applyFiltersAndSearch() {
+    final searchState = ref.read(statisticsSearchProvider);
+    final filterState = ref.read(statisticsFilterProvider);
+
+    var filtered = List<StatisticsEntity>.from(_allItems);
+
+    // Apply search
+    if (searchState.query.isNotEmpty) {
+      filtered = filtered.where((item) {
+        // Implement search logic based on entity fields
+        return item.toString().toLowerCase().contains(searchState.query.toLowerCase());
+      }).toList();
+    }
+
+    // Apply filters
+    // TODO: Implement filtering logic based on entity fields
+
+    // Apply sorting
+    if (filterState.sortField.isNotEmpty) {
+      // TODO: Implement sorting logic based on entity fields
+    }
+
+    _filteredItems = filtered;
+
+    // Apply pagination
+    final pagination = ref.read(statisticsPaginationProvider);
+    final startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
+
+    final paginatedItems = filtered.skip(startIndex).take(pagination.itemsPerPage).toList();
+
+    state = AsyncValue.data(paginatedItems);
+    _updatePagination();
+  }
+
+  /// Updates pagination state based on current data
+  void _updatePagination() {
+    final totalItems = _filteredItems.length;
+    ref.read(statisticsPaginationProvider.notifier).updateTotalItems(totalItems);
+  }
+
+  /// Loads an entity with all its relationships
+  Future<StatisticsEntity> loadWithRelationships(StatisticsEntity entity) async {
+    try {
+      final repository = ref.read(statisticsRepositoryProvider);
+      final result = await repository.loadWithRelationships(entity);
+      return result.fold(
+        (failure) => throw failure,
+        (entity) => entity,
+      );
+    } catch (error) {
+      rethrow;
+    }
+  }
+
+  /// Saves an entity with all its relationships in a single transaction
+  Future<void> saveWithRelationships(StatisticsEntity entity, {List<dynamic>? childEntities}) async {
+    try {
+      final repository = ref.read(statisticsRepositoryProvider);
+      final result = await repository.saveWithRelationships(entity, childEntities: childEntities);
+      result.fold(
+        (failure) => throw failure,
+        (isSuccess) {
+          if (isSuccess == true) {
+            // Refresh the list to show updated data
+            loadAll();
+          }
+        },
+      );
+    } catch (error) {
+      rethrow;
+    }
+  }
+
+  /// Clears all data for this entity type and its related entities
+  Future<void> clearWithRelationships() async {
+    try {
+      final repository = ref.read(statisticsRepositoryProvider);
+      final result = await repository.clearWithRelationships();
+      result.fold(
+        (failure) => throw failure,
+        (isSuccess) {
+          if (isSuccess == true) {
+            _allItems.clear();
+            _applyFiltersAndSearch();
+          }
+        },
+      );
+    } catch (error) {
+      rethrow;
+    }
+  }
+
+  /// Gets all child entities for a given parent entity
+  Future<List<T>> getChildEntities<T>(int parentId, String childType) async {
+    try {
+      final repository = ref.read(statisticsRepositoryProvider);
+      final result = await repository.getChildEntities<T>(parentId, childType);
+      return result.fold(
+        (failure) => throw failure,
+        (entities) => entities,
+      );
+    } catch (error) {
+      rethrow;
+    }
+  }
+}
+
+/// Notifier for managing Statistics search state
+class StatisticsSearchNotifier extends StateNotifier<SearchState> {
+  final Ref ref;
+
+  StatisticsSearchNotifier(this.ref) : super(const SearchState());
+
+  /// Updates the search query and triggers search
+  void updateQuery(String query) {
+    state = state.copyWith(query: query, isSearching: query.isNotEmpty);
+    _triggerSearch();
+  }
+
+  /// Toggles search mode on/off
+  void toggleSearch() {
+    if (state.isSearching) {
+      clearSearch();
+    } else {
+      state = state.copyWith(isSearching: true);
+    }
+  }
+
+  /// Configures which fields are searchable
+  void setSearchFields(List<String> fields) {
+    state = state.copyWith(searchFields: fields);
+    if (state.query.isNotEmpty) {
+      _triggerSearch();
+    }
+  }
+
+  /// Clears search results and resets search state
+  void clearSearch() {
+    state = const SearchState();
+    _triggerSearch();
+  }
+
+  /// Triggers search operation in the list notifier
+  void _triggerSearch() {
+    // Notify the list notifier to apply search
+    ref.read(statisticsListProvider.notifier)._applyFiltersAndSearch();
+  }
+}
+
+/// Notifier for managing Statistics filter state
+class StatisticsFilterNotifier extends StateNotifier<FilterState> {
+  final Ref ref;
+
+  StatisticsFilterNotifier(this.ref) : super(const FilterState());
+
+  /// Adds or updates a filter
+  void addFilter(String key, dynamic value) {
+    final newFilters = Map<String, dynamic>.from(state.filters);
+    newFilters[key] = value;
+    state = state.copyWith(filters: newFilters);
+    _triggerFilter();
+  }
+
+  /// Removes a filter
+  void removeFilter(String key) {
+    final newFilters = Map<String, dynamic>.from(state.filters);
+    newFilters.remove(key);
+    state = state.copyWith(filters: newFilters);
+    _triggerFilter();
+  }
+
+  /// Clears all filters
+  void clearAllFilters() {
+    state = state.copyWith(filters: {});
+    _triggerFilter();
+  }
+
+  /// Sets the sort field and direction
+  void setSortField(String field, {bool ascending = true}) {
+    state = state.copyWith(
+      sortField: field,
+      sortAscending: ascending,
+    );
+    _triggerFilter();
+  }
+
+  /// Toggles sort direction for current field
+  void toggleSortDirection() {
+    state = state.copyWith(sortAscending: !state.sortAscending);
+    _triggerFilter();
+  }
+
+  /// Clears sorting
+  void clearSort() {
+    state = state.copyWith(sortField: '', sortAscending: true);
+    _triggerFilter();
+  }
+
+  /// Triggers filter operation in the list notifier
+  void _triggerFilter() {
+    // Notify the list notifier to apply filters
+    ref.read(statisticsListProvider.notifier)._applyFiltersAndSearch();
+  }
+}
+
+/// Notifier for managing Statistics pagination state
+class StatisticsPaginationNotifier extends StateNotifier<PaginationState> {
+  final Ref ref;
+
+  StatisticsPaginationNotifier(this.ref) : super(const PaginationState());
+
+  /// Navigates to a specific page
+  void goToPage(int page) {
+    if (page >= 1) {
+      state = state.copyWith(currentPage: page);
+      _triggerPagination();
+    }
+  }
+
+  /// Navigates to the next page
+  void nextPage() {
+    if (state.hasNextPage) {
+      state = state.copyWith(currentPage: state.currentPage + 1);
+      _triggerPagination();
+    }
+  }
+
+  /// Navigates to the previous page
+  void previousPage() {
+    if (state.hasPreviousPage) {
+      state = state.copyWith(currentPage: state.currentPage - 1);
+      _triggerPagination();
+    }
+  }
+
+  /// Sets the number of items per page
+  void setItemsPerPage(int itemsPerPage) {
+    if (itemsPerPage > 0) {
+      state = state.copyWith(
+        itemsPerPage: itemsPerPage,
+        currentPage: 1, // Reset to first page
+      );
+      _triggerPagination();
+    }
+  }
+
+  /// Updates total items count and recalculates pagination
+  void updateTotalItems(int totalItems) {
+    final totalPages = (totalItems / state.itemsPerPage).ceil();
+    final hasNextPage = state.currentPage < totalPages;
+    final hasPreviousPage = state.currentPage > 1;
+
+    state = state.copyWith(
+      totalItems: totalItems,
+      hasNextPage: hasNextPage,
+      hasPreviousPage: hasPreviousPage,
+    );
+  }
+
+  /// Resets pagination to first page
+  void reset() {
+    state = state.copyWith(currentPage: 1);
+    _triggerPagination();
+  }
+
+  /// Triggers pagination operation in the list notifier
+  void _triggerPagination() {
+    // Notify the list notifier to apply pagination
+    ref.read(statisticsListProvider.notifier)._applyFiltersAndSearch();
+  }
+}
+
