@@ -1,3 +1,4 @@
+import 'package:edusparkv4/features/simple_todos/domain/entities/todo_entity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/forms/add_edit_todo_form_provider.dart';
@@ -6,13 +7,21 @@ import '../../utils/date_time_utils.dart';
 /// A stateless form for adding or editing a Todo.
 /// State is managed externally by the `todoFormProvider`.
 class AddEditTodoForm extends ConsumerWidget {
-  const AddEditTodoForm({super.key});
+  // The widget now accepts an optional TodoEntity.
+  // This will be null for "add" mode and non-null for "edit" mode.
+  final TodoEntity? todo;
+
+  const AddEditTodoForm({super.key, this.todo});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch the provider to get the current state and the notifier to call methods.
-    final formState = ref.watch(todoFormProvider);
-    final formNotifier = ref.read(todoFormProvider.notifier);
+    // =======================================================================
+    // THE FIX IS HERE:
+    // We pass the `todo` from the widget into the provider family.
+    // This gives us a specific instance of the provider for this form.
+    // =======================================================================
+    final formState = ref.watch(todoFormProvider(todo));
+    final formNotifier = ref.read(todoFormProvider(todo).notifier);
 
     Future<void> pickDueDate() async {
       final DateTime? picked = await showDatePicker(
@@ -29,9 +38,6 @@ class AddEditTodoForm extends ConsumerWidget {
     return Form(
       key: formState.formKey,
       child: Column(
-        // This is the key change. By setting the mainAxisSize to min, the Column
-        // will shrink-wrap its content to be only as tall as its children,
-        // instead of trying to expand to fill the infinite height of the scrollable parent.
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -63,9 +69,7 @@ class AddEditTodoForm extends ConsumerWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final isNarrow = constraints.maxWidth < 350;
-              // We use a standard Row/Column here. The fix is in the parent Column.
               if (isNarrow) {
-                // VERTICAL LAYOUT FOR NARROW SCREENS
                 return Column(
                   children: [
                     _buildPriorityDropdown(formState, formNotifier),
@@ -74,7 +78,6 @@ class AddEditTodoForm extends ConsumerWidget {
                   ],
                 );
               } else {
-                // HORIZONTAL LAYOUT FOR WIDER SCREENS
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -95,7 +98,8 @@ class AddEditTodoForm extends ConsumerWidget {
               icon: formState.isLoading
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : Icon(formState.isEditMode ? Icons.save_alt : Icons.add_task),
-              onPressed: formState.isLoading ? null : formNotifier.submitForm,
+              // Pass the context to the submitForm method
+              onPressed: formState.isLoading ? null : () => formNotifier.submitForm(context),
               label: Text(formState.isEditMode ? 'Save Changes' : 'Add Todo'),
               style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
             ),

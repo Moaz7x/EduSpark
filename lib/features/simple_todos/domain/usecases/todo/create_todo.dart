@@ -1,8 +1,8 @@
+import '../../../../../core/exceptions/exceptions.dart'; // Core exceptions
+import '../../../../../core/types/types.dart'; // Either, Failure types, and all failure classes
 import '../../entities/todo_entity.dart';
 import '../../repositories/todo_repository.dart';
 import '../base_usecase.dart'; // Includes Either<L,R> and Failure types
-import '../../../../../core/exceptions/exceptions.dart'; // Core exceptions
-import '../../../../../core/types/types.dart'; // Either, Failure types, and all failure classes
 
 /// Use case for creating a new Todo entity.
 ///
@@ -46,17 +46,11 @@ class CreateTodoUseCase extends BaseUseCase<TodoEntity, TodoEntity> {
     if (entity.priority.isEmpty) {
       return ValidationFailure('priority cannot be empty');
     }
-    if (entity.order.isEmpty) {
-      return ValidationFailure('order cannot be empty');
-    }
+
     if (entity.dueDate == null) {
       return ValidationFailure('due ate is required');
     }
-    if (entity.updatedAt == null) {
-      return ValidationFailure('updated t is required');
-    }
-   
+
     return null; // No validation errors
   }
 }
-

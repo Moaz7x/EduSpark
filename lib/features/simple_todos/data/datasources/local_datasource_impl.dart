@@ -1,17 +1,13 @@
 
-import 'dart:io';
-import 'package:isar/isar.dart';
-
-
 import 'dart:developer' as developer;
 
+import 'package:isar/isar.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/types/types.dart';
-
-
-import 'local_datasource.dart';
 // Import all models from barrel file
 import '../models/models.dart';
+import 'local_datasource.dart';
 
 
 
@@ -31,7 +27,8 @@ class LocalDataSourceImpl implements LocalDataSource {
     try {
 
 
-      _isar = await Isar.open([
+     
+        _isar = await Isar.open([
 
         TodoModelSchema,
 
@@ -41,6 +38,7 @@ class LocalDataSourceImpl implements LocalDataSource {
 
       ], directory: await _getIsarDirectory());
 
+      
       developer.log('LocalDataSource initialized successfully');
       return const Right(null);
     } catch (e) {
@@ -64,7 +62,7 @@ class LocalDataSourceImpl implements LocalDataSource {
 
   /// Gets the Isar directory path
   Future<String> _getIsarDirectory() async {
-    final dir = Directory.systemTemp.createTempSync('isar_simple_todos_db');
+    final dir = await getApplicationDocumentsDirectory();
     return dir.path;
   }
 

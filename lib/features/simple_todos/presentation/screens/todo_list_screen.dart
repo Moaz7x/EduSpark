@@ -6,7 +6,7 @@ import '../widgets/forms/add_edit_todo_form.dart';
 import '../widgets/todo_list_screen/todo_list_app_bar.dart';
 import '../widgets/todo_list_screen/todo_tab_view.dart';
 
-/// A wrapper widget whose only purpose is to provide a Ticker for the TabController.
+/// A thin StatefulWidget wrapper whose ONLY purpose is to provide the TickerProvider.
 class TodoListScreen extends StatefulWidget {
   const TodoListScreen({super.key});
 
@@ -14,48 +14,39 @@ class TodoListScreen extends StatefulWidget {
   State<TodoListScreen> createState() => _TodoListScreenState();
 }
 
-class _TodoListScreenState extends State<TodoListScreen> with SingleTickerProviderStateMixin {
-  // This is the key: we create the provider override here, passing `this` as the TickerProvider.
-  late final StateNotifierProvider<TodoListScreenNotifier, TodoListScreenState> _provider;
-
-  @override
-  void initState() {
-    super.initState();
-    _provider = StateNotifierProvider<TodoListScreenNotifier, TodoListScreenState>(
-      (ref) => TodoListScreenNotifier(this),
-    );
-  }
-
+// =======================================================================
+// THE FIX IS HERE:
+// We change the mixin from 'SingleTickerProviderStateMixin' to the more
+// robust 'TickerProviderStateMixin'.
+// =======================================================================
+class _TodoListScreenState extends State<TodoListScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
-    // We wrap the actual UI in a ProviderScope to override the provider.
-    return ProviderScope(
-      overrides: [
-        todoListScreenProvider.overrideWith((ref) => ref.watch(_provider.notifier)),
-      ],
-      child: const _TodoListScreenView(),
-    );
+    // The actual UI is built by this stateless child widget.
+    // We pass `this` (which is now a full TickerProvider) as the family parameter.
+    return _TodoListScreenView(vsync: this);
   }
 }
 
 /// The actual UI for the screen, now a stateless ConsumerWidget.
 class _TodoListScreenView extends ConsumerWidget {
-  const _TodoListScreenView();
+  final TickerProvider vsync;
+  const _TodoListScreenView({required this.vsync});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // The UI now watches the provider as usual.
-    final screenState = ref.watch(todoListScreenProvider);
-    final screenNotifier = ref.read(todoListScreenProvider.notifier);
+    // The UI now watches the provider family, passing the TickerProvider.
+    final screenState = ref.watch(todoListScreenProvider(vsync));
+    final screenNotifier = ref.read(todoListScreenProvider(vsync).notifier);
 
     return Scaffold(
-      appBar: const TodoListAppBar(),
+      appBar: TodoListAppBar(vsync: vsync),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           ModalBottomSheetUtils.showAppModalBottomSheet(
             context: context,
             title: 'Add New Todo',
-            child: const AddEditTodoForm(),
+            child: const AddEditTodoForm(todo: null),
           );
         },
         child: const Icon(Icons.add),
@@ -63,7 +54,7 @@ class _TodoListScreenView extends ConsumerWidget {
       body: TodoTabView(
         // The TabController is now accessed directly from the notifier.
         tabController: screenNotifier.tabController,
-        allTodos: screenState.allTodos,
+        todos: screenState.todos,
         searchQuery: screenState.searchQuery,
       ),
     );

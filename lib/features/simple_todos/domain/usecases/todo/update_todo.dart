@@ -1,8 +1,8 @@
+import '../../../../../core/exceptions/exceptions.dart'; // Core exceptions
+import '../../../../../core/types/types.dart'; // Either, Failure types, and all failure classes
 import '../../entities/todo_entity.dart';
 import '../../repositories/todo_repository.dart';
 import '../base_usecase.dart'; // Includes Either<L,R> and Failure types
-import '../../../../../core/exceptions/exceptions.dart'; // Core exceptions
-import '../../../../../core/types/types.dart'; // Either, Failure types, and all failure classes
 
 /// Use case for updating an existing Todo entity.
 ///
@@ -30,10 +30,7 @@ class UpdateTodoUseCase extends BaseUseCase<TodoEntity, UpdateParams<TodoEntity>
     try {
       // Check if entity exists before updating
       final existsResult = await repository.exists(params.id);
-      final exists = existsResult.fold(
-        (failure) => false,
-        (exists) => exists,
-      );
+      final exists = existsResult.fold((failure) => false, (exists) => exists);
       if (!exists) {
         return Left(ValidationFailure('Todo with ID ${params.id} does not exist'));
       }
@@ -70,13 +67,7 @@ class UpdateTodoUseCase extends BaseUseCase<TodoEntity, UpdateParams<TodoEntity>
     if (entity.updatedAt == null) {
       return ValidationFailure('updated at is required');
     }
-    if (entity.subtasks == null) {
-      return ValidationFailure('subtasks is required');
-    }
-    if (entity.reminders == null) {
-      return ValidationFailure('reminders is required');
-    }
+
     return null; // No validation errors
   }
 }
-

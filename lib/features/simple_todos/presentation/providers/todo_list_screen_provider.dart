@@ -1,30 +1,28 @@
+import 'package:edusparkv4/features/simple_todos/data/providers/simple_todos_data_providers.dart';
+import 'package:edusparkv4/features/simple_todos/domain/entities/todo_entity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-// In a real app, you would import your entity
-// import '../../domain/entities/todo_entity.dart';
 
 /// Represents the state for the entire TodoListScreen.
 @immutable
 class TodoListScreenState {
-  // In a real app, this would be AsyncValue<List<TodoEntity>>
-  final List<Map<String, dynamic>> allTodos;
+  final AsyncValue<List<TodoEntity>> todos;
   final String searchQuery;
   final bool isSearching;
 
   const TodoListScreenState({
-    this.allTodos = const [],
+    this.todos = const AsyncLoading(),
     this.searchQuery = '',
     this.isSearching = false,
   });
 
   TodoListScreenState copyWith({
-    List<Map<String, dynamic>>? allTodos,
+    AsyncValue<List<TodoEntity>>? todos,
     String? searchQuery,
     bool? isSearching,
   }) {
     return TodoListScreenState(
-      allTodos: allTodos ?? this.allTodos,
+      todos: todos ?? this.todos,
       searchQuery: searchQuery ?? this.searchQuery,
       isSearching: isSearching ?? this.isSearching,
     );
@@ -32,33 +30,33 @@ class TodoListScreenState {
 }
 
 /// Notifier to manage the state for the TodoListScreen.
+/// It now also manages the TabController.
 class TodoListScreenNotifier extends StateNotifier<TodoListScreenState> {
-  // We need a TickerProvider, which we will get from the provider itself.
-  TodoListScreenNotifier(TickerProvider vsync) : super(const TodoListScreenState()) {
-    // --- MANAGE ALL CONTROLLERS HERE ---
+  final Ref _ref;
+  // The notifier now takes a TickerProvider, which will be supplied by the UI.
+  TodoListScreenNotifier(this._ref, TickerProvider vsync) : super(const TodoListScreenState()) {
+    // All controllers are now created and managed here.
     searchController = TextEditingController();
     tabController = TabController(length: 3, vsync: vsync);
 
-    // Add listener for search controller
     searchController.addListener(() {
       onSearchChanged(searchController.text);
     });
 
-    _fetchTodos();
+    fetchTodos();
   }
 
   late final TextEditingController searchController;
   late final TabController tabController;
 
-  void _fetchTodos() {
-    // TODO: Replace this with a call to your use case.
-    // --- MOCK DATA FOR PROTOTYPE ---
-    final mockTodos = [
-      {'id': 1, 'title': 'Design the new app dashboard', 'isCompleted': false, 'priority': 'High', 'dueDate': DateTime.now().add(const Duration(days: 2))},
-      {'id': 2, 'title': 'Develop the authentication flow', 'isCompleted': true, 'priority': 'High', 'dueDate': DateTime.now().subtract(const Duration(days: 5))},
-      {'id': 3, 'title': 'Write API documentation', 'isCompleted': false, 'priority': 'Medium', 'dueDate': DateTime.now().add(const Duration(days: 10))},
-    ];
-    state = state.copyWith(allTodos: mockTodos);
+  Future<void> fetchTodos() async {
+    state = state.copyWith(todos: const AsyncLoading());
+    final getAllTodosUseCase = _ref.read(getAllTodosUseCaseProvider);
+    final result = await getAllTodosUseCase.call();
+    result.fold(
+      (failure) => state = state.copyWith(todos: AsyncError(failure, StackTrace.current)),
+      (todos) => state = state.copyWith(todos: AsyncData(todos)),
+    );
   }
 
   void onSearchChanged(String query) {
@@ -83,9 +81,10 @@ class TodoListScreenNotifier extends StateNotifier<TodoListScreenState> {
 }
 
 /// The main provider for the TodoListScreen.
-/// We can no longer use .autoDispose if we need to pass a TickerProvider.
-final todoListScreenProvider = StateNotifierProvider<TodoListScreenNotifier, TodoListScreenState>((ref) {
-  // This is a placeholder. The actual TickerProvider will be supplied by the UI.
-  // This will cause an error if not overridden, which is what we want.
-  throw UnimplementedError('TickerProvider must be provided');
-});
+/// It is now a family that requires a TickerProvider to be created.
+final todoListScreenProvider =
+    StateNotifierProvider.autoDispose.family<TodoListScreenNotifier, TodoListScreenState, TickerProvider>(
+  (ref, vsync) {
+    return TodoListScreenNotifier(ref, vsync);
+  },
+);
