@@ -1,0 +1,71 @@
+# Flutter/Dart/Pub
+.dart_tool/
+.packages
+.pub-cache/
+build/
+flutter_*.png
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Android
+android/local.properties
+android/.gradle/
+android/app/key.jks
+android/key.properties
+**/android/.gradle/
+**/android/captures/
+
+# iOS
+ios/Pods/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/App.framework
+ios/Flutter/Generated.xcconfig
+ios/.symlinks/
+ios/Runner.xcworkspace/
+ios/Podfile.lock
+ios/Podfile
+*.xcworkspace
+*.xcuserstate
+*.xcuserdatad
+
+# Linux
+linux/flutter/ephemeral/
+
+# Web
+web/generated_plugin_registrant.dart
+
+# Generated files
+*.log
+*.tmp
+*.temp
+*.swp
+*.lock
+*.bak
+
+# Coverage
+coverage/
+
+# Firebase / Google services (keep secure)
+**/google-services.json
+**/GoogleService-Info.plist
+
+# Crashlytics
+crashlytics-build.properties
+
+# Optional: environment files
+.env
+.env.*

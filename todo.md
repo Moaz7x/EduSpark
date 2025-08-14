@@ -1,0 +1,8 @@
+1. edit statefull widgets in forms [x]
+2. edit modal bottom sheet to be statless in utils [x]
+3. make todo list screen stateless [] 
+  - make todo list widgets stateless []
+  - make todo list page stateless []
+4. make todo_detail_screen stateless []
+  - make todo detail screen widgets stateless []
+  - make todo detail screen page stateless []
